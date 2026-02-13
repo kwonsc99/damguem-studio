@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react"; // Suspense 추가
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, Sparkles, Home } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
-export default function CompletePage() {
+// 1. 실제 로직을 담은 내부 컴포넌트
+function CompleteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -159,5 +160,20 @@ export default function CompletePage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// 2. 외부에서 접근하는 페이지 컴포넌트 (Suspense로 감싸기)
+export default function CompletePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-warm-600 animate-pulse">잠시만 기다려 주세요...</p>
+        </div>
+      }
+    >
+      <CompleteContent />
+    </Suspense>
   );
 }
