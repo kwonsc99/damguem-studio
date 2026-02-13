@@ -53,7 +53,7 @@ ${Object.entries(answers)
 # Guidelines:
 1. **Target Audience**: 5070 세대가 공감할 수 있는 단어(세월, 노을, 그리움, 인연, 바람 등)와 구어체(-했지요, -구려, -네요)를 사용하세요.
 2. **Literary Expansion**: 사용자의 짧은 답변을 그대로 쓰지 마세요. 당시의 계절감, 온도, 공기의 냄새, 시각적 이미지를 동원하여 문학적으로 확장하세요.
-3. **Storytelling (기승전결)**: 가사 구조(Verse 1, 2 - Chorus - Bridge - Outro)를 엄격히 지키며, 사용자의 경험이 하나의 완성된 이야기로 흐르도록 배치하세요.
+3. **Storytelling (기승전결)**: 가사 구조(Verse 1, 2 - Chorus - Bridge - Outro)를 엄격히 지키며, 실제 생성물에도 []안에 표기합니다. 사용자의 경험이 하나의 완성된 이야기로 흐르도록 배치하세요.
 
 # Musical Style Tag Rules:
 - Suno AI용 영문 태그 (korean + 장르 필수 포함).
