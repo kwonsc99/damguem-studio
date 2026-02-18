@@ -364,6 +364,7 @@ export default function AdminDashboard() {
                       </div>
 
                       {/* Lyrics */}
+                      {/* 가사 섹션 내부 */}
                       <div className="bg-warm-50 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold text-primary-900">
@@ -371,8 +372,12 @@ export default function AdminDashboard() {
                           </h4>
                           <button
                             onClick={() =>
+                              // 복사할 때는 <br>을 실제 줄바꿈(\n)으로 바꿔서 클립보드에 복사해주는 것이 좋습니다.
                               copyToClipboard(
-                                request.prompt!.lyrics,
+                                request.prompt!.lyrics.replace(
+                                  /<br\s*\/?>/gi,
+                                  "\n"
+                                ),
                                 request.id,
                                 "lyrics"
                               )
@@ -392,8 +397,17 @@ export default function AdminDashboard() {
                             )}
                           </button>
                         </div>
-                        <pre className="whitespace-pre-wrap text-sm text-warm-900 max-h-64 overflow-y-auto">
-                          {request.prompt.lyrics}
+
+                        {/* 이 부분을 수정합니다 */}
+                        <pre className="whitespace-pre-wrap text-sm text-warm-900 max-h-64 overflow-y-auto font-sans">
+                          {request.prompt.lyrics
+                            .split(/<br\s*\/?>/gi)
+                            .map((line, index, array) => (
+                              <span key={index}>
+                                {line}
+                                {index < array.length - 1 && <br />}
+                              </span>
+                            ))}
                         </pre>
                       </div>
 
