@@ -20,7 +20,7 @@ export default function Home() {
           </h1>
         </motion.div>
 
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           className="flex gap-3"
@@ -31,7 +31,7 @@ export default function Home() {
           >
             관리자
           </Link>
-        </motion.div>
+        </motion.div> */}
       </header>
 
       {/* Hero Section */}
@@ -161,7 +161,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-8 text-center text-warm-600 text-sm">
-        <p>© 2024 담음(談音). All rights reserved.</p>
+        <p>© 2026 담음(談音). All rights reserved.</p>
       </footer>
     </div>
   );
