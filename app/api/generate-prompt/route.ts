@@ -38,7 +38,7 @@ const GENRE_RULES: Record<string, string> = {
     "- 특징: 본인의 서사를 자랑하거나 솔직한 성찰을 담은 비유적 표현(펀치라인) 활용.",
 };
 
-export async function generateSongPrompt(data: {
+async function generateSongPrompt(data: {
   theme: Theme;
   answers: Record<string, string>;
   style: string;
