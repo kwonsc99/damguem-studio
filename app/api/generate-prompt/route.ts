@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { Theme, Genre } from "@/lib/types";
 
+// Vercel/Next.js 타임아웃 연장 (최대 60초)
+export const maxDuration = 60;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -57,7 +60,7 @@ async function generateSongPrompt(data: {
     model: "gemini-2.5-flash",
     generationConfig: {
       maxOutputTokens: 4096,
-      temperature: 0.8,
+      temperature: 0.7,
       responseMimeType: "application/json",
       responseSchema: {
         type: SchemaType.OBJECT,
@@ -123,11 +126,11 @@ async function generateSongPrompt(data: {
   ## 4. Story Structure (엄격 준수)
   아래 구조를 반드시 지키세요:
   
-  [Intro(Instrumental)] 
+  [Intro] 
   [Verse 1]
   [Pre-Chorus]
   [Chorus]
-  [Interlude(Instrumental)] 
+  [Interlude] 
   [Verse 2]
   [Pre-Chorus]
   [Chorus]
@@ -136,6 +139,7 @@ async function generateSongPrompt(data: {
   [Outro]
   
   각 섹션 제목을 []로 표기합니다.
+  intro와 interlude에는 가사가 없습니다.
   
   모든 가사 줄 끝에는 반드시 \n 을 포함하세요.
   
@@ -174,33 +178,26 @@ async function generateSongPrompt(data: {
   {
     "songTitle": "...",
     "lyrics": "...",
-    "style_tags": "tag1, tag2, tag3"
+    "styleTags": "tag1, tag2, tag3"
   }
   
   `;
 
   try {
     const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = result.response.text();
 
-    // 1. 응답 텍스트에서 불필요한 마크다운 코드 블록(```json) 제거
+    if (!text) throw new Error("Empty response from Gemini");
+
+    // 안전한 파싱: 마크다운 코드 블록 제거 후 파싱
     const cleanedText = text.replace(/```json|```/g, "").trim();
-
-    // 2. 만약 응답이 비어있으면 에러 처리
-    if (!cleanedText) {
-      throw new Error("Empty response from Gemini");
-    }
-
-    // 3. JSON 파싱
     return JSON.parse(cleanedText);
   } catch (error) {
-    console.error("Gemini API Error:", error);
-
-    // 에러 발생 시 사용자에게 보여줄 최소한의 폴백 데이터
+    console.error("Gemini API Parsing Error:", error);
+    // 폴백 데이터 반환
     return {
       songTitle: `${theme}의 이야기`,
-      lyrics: `[Verse 1]\n우리의 소중한 기억이\n노래가 되어 흐르네요\n잠시만 기다려주면\n아름다운 곡이 완성될 거예요`,
+      lyrics: `[Verse 1]\n소중한 기억이 노래가 되어 흐르네요\n잠시만 기다려주면\n아름다운 곡이 완성될 거예요`,
       styleTags: `korean, ${genre}, emotional`,
     };
   }

@@ -11,23 +11,26 @@ import {
   FileText,
   Send,
   Search,
-  Filter,
   ChevronDown,
   User,
-  ExternalLink,
   Sparkles,
+  Mic2,
+  Heart,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Interface 보완: 사용자의 답변 내역(answers) 추가
+// 데이터 인터페이스 정의
 interface RequestWithPrompt {
   id: string;
   phone_number: string;
   theme: string;
   genre: string;
   style: string;
-  answers: Record<string, string>; // 유저 답변 추가
+  vocal_gender: string;
+  preferred_artist: string;
+  answers: Record<string, string>;
   status: string;
   sent_at: string | null;
   created_at: string;
@@ -103,21 +106,21 @@ export default function AdminDashboard() {
     try {
       const response = await fetch("/api/admin/requests");
       const result = await response.json();
-      if (result.success) {
-        setRequests(result.data);
-      }
+      if (result.success) setRequests(result.data);
     } catch (error) {
-      console.error(error);
+      console.error("Fetch error:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const copyToClipboard = async (
+    e: React.MouseEvent,
     text: string,
     requestId: string,
     field: string
   ) => {
+    e.stopPropagation(); // 부모 요소인 아코디언의 클릭 이벤트 전파 방지
     try {
       await navigator.clipboard.writeText(text);
       setCopiedStates((prev) => ({
@@ -133,7 +136,7 @@ export default function AdminDashboard() {
         1500
       );
     } catch (error) {
-      console.error(error);
+      console.error("Copy failed:", error);
     }
   };
 
@@ -152,9 +155,9 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-warm-100 sticky top-0 z-30">
+    <div className="min-h-screen bg-[#FAFAFA] pb-20">
+      {/* Global Header */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-warm-100 sticky top-0 z-40">
         <div className="container mx-auto px-4 h-16 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
@@ -166,7 +169,7 @@ export default function AdminDashboard() {
           </div>
           <button
             onClick={() => supabase.auth.signOut().then(() => router.push("/"))}
-            className="p-2 text-warm-500 hover:bg-warm-50 rounded-full transition-all"
+            className="p-2 text-warm-400 hover:text-warm-900 transition-colors"
           >
             <LogOut className="w-5 h-5" />
           </button>
@@ -174,7 +177,7 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8 max-w-5xl">
-        {/* 상단 통계 카드 */}
+        {/* Statistics Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {[
             {
@@ -184,7 +187,7 @@ export default function AdminDashboard() {
               icon: FileText,
             },
             {
-              label: "대기 중",
+              label: "전송 대기",
               count: requests.filter((r) => r.status !== "sent").length,
               color: "bg-yellow-500",
               icon: Phone,
@@ -206,7 +209,7 @@ export default function AdminDashboard() {
                 <stat.icon className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-warm-500 font-medium">
+                <p className="text-[10px] text-warm-400 font-bold uppercase">
                   {stat.label}
                 </p>
                 <p className="text-xl font-bold text-warm-900">{stat.count}</p>
@@ -215,8 +218,8 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* 검색 및 필터 바 */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
+        {/* Search & Filter Bar */}
+        <div className="flex flex-col md:flex-row gap-3 mb-8">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-300" />
             <input
@@ -224,18 +227,18 @@ export default function AdminDashboard() {
               placeholder="전화번호 또는 테마 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+              className="w-full pl-11 pr-4 py-3.5 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-primary-100 outline-none transition-all text-sm"
             />
           </div>
-          <div className="flex gap-2 bg-white p-1.5 rounded-2xl shadow-sm">
+          <div className="flex gap-1.5 bg-white p-1.5 rounded-2xl shadow-sm">
             {["all", "pending", "sent"].map((s) => (
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
                   filterStatus === s
-                    ? "bg-warm-900 text-white"
-                    : "text-warm-400 hover:text-warm-600"
+                    ? "bg-warm-900 text-white shadow-md"
+                    : "text-warm-400 hover:bg-warm-50"
                 }`}
               >
                 {s === "all" ? "전체" : s === "pending" ? "대기" : "완료"}
@@ -244,28 +247,28 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* 리스트 섹션 */}
+        {/* Request List */}
         <div className="space-y-4">
           {loading ? (
             <div className="py-20 text-center">
               <Music className="w-8 h-8 mx-auto animate-spin text-primary-200" />
             </div>
           ) : filteredRequests.length === 0 ? (
-            <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-warm-200 text-warm-400">
-              요청 데이터가 없습니다.
+            <div className="py-32 text-center bg-white rounded-[2.5rem] border border-dashed border-warm-200 text-warm-400">
+              <p className="font-medium">해당되는 요청 데이터가 없습니다.</p>
             </div>
           ) : (
             filteredRequests.map((request) => (
               <motion.div
                 layout
                 key={request.id}
-                className={`bg-white rounded-[2rem] border transition-all ${
+                className={`bg-white rounded-[2rem] border transition-all overflow-hidden ${
                   expandedId === request.id
-                    ? "border-primary-200 shadow-md"
+                    ? "border-primary-200 shadow-xl ring-4 ring-primary-50/50"
                     : "border-warm-100 shadow-sm"
                 }`}
               >
-                {/* 헤더 부분 (항상 노출) */}
+                {/* Accordion Header */}
                 <div
                   className="p-5 md:p-6 cursor-pointer flex items-center justify-between"
                   onClick={() =>
@@ -274,7 +277,7 @@ export default function AdminDashboard() {
                 >
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2.5 h-2.5 rounded-full ${
                         request.status === "sent"
                           ? "bg-green-500"
                           : "bg-yellow-500 animate-pulse"
@@ -283,186 +286,249 @@ export default function AdminDashboard() {
                     <div>
                       <h3 className="font-bold text-warm-900 flex items-center gap-2">
                         {request.theme}
-                        <span className="text-xs font-normal text-warm-400">
-                          | {request.genre}
+                        <span className="text-[10px] px-2 py-0.5 bg-warm-100 text-warm-600 rounded-md font-bold uppercase">
+                          {request.genre}
                         </span>
                       </h3>
-                      <p className="text-sm text-warm-500 mt-0.5">
+                      <p className="text-sm font-medium text-warm-500 mt-0.5">
                         {request.phone_number}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="hidden md:block text-xs text-warm-300">
-                      {new Date(request.created_at).toLocaleDateString()}
-                    </span>
-                    <div
-                      className={`p-2 rounded-full transition-transform ${
+                  <div className="flex items-center gap-4">
+                    <div className="hidden md:flex flex-col items-end text-[10px] text-warm-300 font-bold uppercase">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />{" "}
+                        {new Date(request.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={`w-5 h-5 transition-transform duration-300 ${
                         expandedId === request.id
                           ? "rotate-180 text-primary-500"
                           : "text-warm-300"
                       }`}
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </div>
+                    />
                   </div>
                 </div>
 
-                {/* 상세 부분 (확장 시 노출) */}
+                {/* Accordion Content */}
                 <AnimatePresence>
                   {expandedId === request.id && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden border-t border-warm-50"
+                      className="border-t border-warm-50 bg-white"
                     >
-                      <div className="p-6 md:p-8 space-y-8">
-                        {/* 1. AI 생성 결과 */}
+                      <div className="p-5 md:p-8 space-y-10">
+                        {/* 1. Production Guide (제작 필수 정보) */}
+                        <section className="bg-primary-50/50 rounded-3xl p-6 border border-primary-100">
+                          <div className="flex items-center gap-2 mb-5 text-primary-700">
+                            <Mic2 className="w-4 h-4" />
+                            <h4 className="text-xs font-black uppercase tracking-widest">
+                              Production Guide
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div>
+                              <p className="text-[10px] font-bold text-primary-400 uppercase mb-1">
+                                보컬 성별
+                              </p>
+                              <p className="font-bold text-warm-900 text-lg">
+                                {request.vocal_gender === "female"
+                                  ? "여성 보컬 👩"
+                                  : "남성 보컬 👨"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-primary-400 uppercase mb-1">
+                                선호 아티스트/스타일
+                              </p>
+                              <p className="font-bold text-warm-900 text-lg">
+                                {request.preferred_artist || "지정 없음"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-primary-400 uppercase mb-1">
+                                분위기 스타일
+                              </p>
+                              <p className="font-bold text-warm-900 text-lg">
+                                {request.style}
+                              </p>
+                            </div>
+                          </div>
+                        </section>
+
+                        {/* 2. User Story (답변 내역) */}
+                        <section>
+                          <div className="flex items-center gap-2 mb-4 text-warm-400">
+                            <Heart className="w-4 h-4" />
+                            <h4 className="text-xs font-black uppercase tracking-widest">
+                              User Story
+                            </h4>
+                          </div>
+                          <div className="grid gap-3">
+                            {Object.entries(request.answers || {}).map(
+                              ([q, a], i) => (
+                                <div
+                                  key={i}
+                                  className="bg-warm-50/30 p-4 rounded-2xl border border-warm-100/50"
+                                >
+                                  <p className="text-[10px] text-warm-400 font-bold mb-1">
+                                    Q. {q}
+                                  </p>
+                                  <p className="text-sm text-warm-800 font-medium leading-relaxed">
+                                    {a}
+                                  </p>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </section>
+
+                        {/* 3. AI Result (생략 불가) */}
                         {request.prompt ? (
                           <section className="space-y-6">
-                            <div className="flex items-center gap-2 mb-4 text-primary-600">
+                            <div className="flex items-center gap-2 mb-4 text-warm-400">
                               <Sparkles className="w-4 h-4" />
-                              <h4 className="text-sm font-bold uppercase tracking-wider">
-                                AI Generated
+                              <h4 className="text-xs font-black uppercase tracking-widest">
+                                AI Result
                               </h4>
                             </div>
 
-                            {/* 제목 & 태그 */}
+                            {/* 제목 및 태그 복사 영역 */}
                             <div className="grid md:grid-cols-2 gap-4">
-                              <div className="bg-white border border-warm-100 p-5 rounded-2xl group">
-                                <div className="flex justify-between items-start mb-2">
+                              <div className="bg-white border border-warm-100 p-5 rounded-2xl shadow-sm">
+                                <div className="flex justify-between items-center mb-3">
                                   <span className="text-[10px] font-bold text-warm-300 uppercase">
                                     Song Title
                                   </span>
                                   <button
-                                    onClick={() =>
+                                    onClick={(e) =>
                                       copyToClipboard(
+                                        e,
                                         request.prompt!.song_title,
                                         request.id,
                                         "title"
                                       )
                                     }
-                                    className="text-primary-500 hover:scale-110 transition-transform"
+                                    className="p-2.5 text-primary-500 bg-primary-50 rounded-xl hover:bg-primary-100 active:scale-90 transition-all"
                                   >
                                     {copiedStates[request.id]?.title ? (
-                                      <Check className="w-4 h-4" />
+                                      <Check className="w-5 h-5" />
                                     ) : (
-                                      <Copy className="w-4 h-4" />
+                                      <Copy className="w-5 h-5" />
                                     )}
                                   </button>
                                 </div>
-                                <p className="font-bold text-lg text-warm-900">
+                                <p className="font-bold text-warm-900 text-lg">
                                   {request.prompt.song_title}
                                 </p>
                               </div>
-                              <div className="bg-white border border-warm-100 p-5 rounded-2xl">
-                                <div className="flex justify-between items-start mb-2">
+                              <div className="bg-white border border-warm-100 p-5 rounded-2xl shadow-sm">
+                                <div className="flex justify-between items-center mb-3">
                                   <span className="text-[10px] font-bold text-warm-300 uppercase">
                                     Style Tags
                                   </span>
                                   <button
-                                    onClick={() =>
+                                    onClick={(e) =>
                                       copyToClipboard(
+                                        e,
                                         request.prompt!.style_tags,
                                         request.id,
                                         "tags"
                                       )
                                     }
-                                    className="text-primary-500 hover:scale-110 transition-transform"
+                                    className="p-2.5 text-primary-500 bg-primary-50 rounded-xl hover:bg-primary-100 active:scale-90 transition-all"
                                   >
                                     {copiedStates[request.id]?.tags ? (
-                                      <Check className="w-4 h-4" />
+                                      <Check className="w-5 h-5" />
                                     ) : (
-                                      <Copy className="w-4 h-4" />
+                                      <Copy className="w-5 h-5" />
                                     )}
                                   </button>
                                 </div>
-                                <p className="text-sm text-warm-600 font-mono">
+                                <p className="text-xs text-warm-600 font-mono break-all leading-relaxed">
                                   {request.prompt.style_tags}
                                 </p>
                               </div>
                             </div>
 
-                            {/* 가사 */}
-                            <div className="bg-warm-900 text-warm-100 p-6 md:p-8 rounded-[2rem] relative group">
-                              <button
-                                onClick={() =>
-                                  copyToClipboard(
-                                    request.prompt!.lyrics.replace(
-                                      /<br\s*\/?>/gi,
-                                      "\n"
-                                    ),
-                                    request.id,
-                                    "lyrics"
-                                  )
-                                }
-                                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
-                              >
-                                {copiedStates[request.id]?.lyrics ? (
-                                  <Check className="w-5 h-5 text-green-400" />
-                                ) : (
-                                  <Copy className="w-5 h-5" />
-                                )}
-                              </button>
-                              <pre className="whitespace-pre-wrap font-sans text-sm md:text-base leading-loose opacity-90">
-                                {request.prompt.lyrics
-                                  .split(/<br\s*\/?>/gi)
-                                  .map((line, i) => (
-                                    <span key={i}>
-                                      {line}
-                                      <br />
-                                    </span>
-                                  ))}
-                              </pre>
+                            {/* 가사 박스 (모바일 최적화) */}
+                            <div className="rounded-[2.5rem] overflow-hidden border border-warm-800 bg-warm-900 shadow-2xl">
+                              <div className="flex items-center justify-between px-6 py-5 bg-white/5 border-b border-white/10">
+                                <span className="text-xs font-black text-warm-400 tracking-[0.2em]">
+                                  LYRICS
+                                </span>
+                                <button
+                                  onClick={(e) =>
+                                    copyToClipboard(
+                                      e,
+                                      request.prompt!.lyrics.replace(
+                                        /<br\s*\/?>/gi,
+                                        "\n"
+                                      ),
+                                      request.id,
+                                      "lyrics"
+                                    )
+                                  }
+                                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg ${
+                                    copiedStates[request.id]?.lyrics
+                                      ? "bg-green-500 text-white scale-105"
+                                      : "bg-primary-500 text-white"
+                                  }`}
+                                >
+                                  {copiedStates[request.id]?.lyrics ? (
+                                    <>
+                                      <Check className="w-4 h-4" /> 복사 완료!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-4 h-4" /> 가사 전체
+                                      복사
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <div className="p-8 md:p-10 max-h-[500px] overflow-y-auto custom-scrollbar">
+                                <pre className="whitespace-pre-wrap font-sans text-sm md:text-base leading-[2.2] text-warm-100 opacity-90 tracking-wide">
+                                  {request.prompt.lyrics
+                                    .split(/<br\s*\/?>/gi)
+                                    .map((line, i) => (
+                                      <span key={i}>
+                                        {line}
+                                        <br />
+                                      </span>
+                                    ))}
+                                </pre>
+                              </div>
                             </div>
-                            {/* 1. 유저 답변 내역 */}
-                            <section>
-                              <div className="flex items-center gap-2 mb-4 text-primary-600">
-                                <User className="w-4 h-4" />
-                                <h4 className="text-sm font-bold uppercase tracking-wider">
-                                  User Story
-                                </h4>
-                              </div>
-                              <div className="grid gap-3">
-                                {Object.entries(request.answers || {}).map(
-                                  ([q, a], i) => (
-                                    <div
-                                      key={i}
-                                      className="bg-warm-50/50 p-4 rounded-2xl"
-                                    >
-                                      <p className="text-[11px] text-warm-400 mb-1">
-                                        Q. {q}
-                                      </p>
-                                      <p className="text-sm text-warm-800 leading-relaxed font-medium">
-                                        {a}
-                                      </p>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </section>
 
-                            {/* 전송 버튼 */}
-                            <div className="flex flex-col md:flex-row gap-3 pt-4">
+                            {/* 최종 전송 버튼 */}
+                            <div className="pt-6">
                               {request.status !== "sent" ? (
                                 <button
                                   onClick={() => markAsSent(request.id)}
-                                  className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+                                  className="w-full py-5 bg-green-600 text-white rounded-[1.5rem] font-bold text-lg flex items-center justify-center gap-3 hover:bg-green-700 shadow-xl shadow-green-100 transition-all active:scale-[0.98]"
                                 >
-                                  <Send className="w-4 h-4" /> 전송 완료로 표시
+                                  <Send className="w-5 h-5" /> 카카오톡 전송
+                                  완료로 표시
                                 </button>
                               ) : (
-                                <div className="flex-1 py-4 bg-warm-50 text-warm-400 rounded-2xl font-bold flex items-center justify-center gap-2 border border-warm-100">
-                                  <Check className="w-4 h-4" /> 전송 완료 (
-                                  {new Date(request.sent_at!).toLocaleString()})
+                                <div className="w-full py-5 bg-warm-50 text-warm-400 rounded-[1.5rem] font-bold flex items-center justify-center gap-3 border border-warm-100">
+                                  <Check className="w-5 h-5" /> 전송 완료됨 (
+                                  {new Date(request.sent_at!).toLocaleString(
+                                    "ko-KR"
+                                  )}
+                                  )
                                 </div>
                               )}
                             </div>
                           </section>
                         ) : (
-                          <div className="py-12 text-center bg-warm-50 rounded-3xl text-warm-400 text-sm">
-                            가사 생성 중이거나 오류가 발생했습니다.
+                          <div className="py-20 text-center bg-warm-50 rounded-3xl border border-warm-100 text-warm-400 text-sm font-medium">
+                            가사 데이터가 존재하지 않거나 생성 중입니다.
                           </div>
                         )}
                       </div>
@@ -474,6 +540,9 @@ export default function AdminDashboard() {
           )}
         </div>
       </main>
+
+      {/* 모바일 하단 여백 가이드 */}
+      <div className="h-10" />
     </div>
   );
 }

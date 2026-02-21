@@ -22,14 +22,26 @@ const supabase = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // 1. 프론트엔드에서 보낸 모든 데이터 추출
+    const {
+      phone_number,
+      theme,
+      answers,
+      style,
+      genre,
+      vocalGender, // 추가
+      preferredArtist, // 추가
+    } = body;
+
     console.log("Received request:", {
-      phone: body.phone_number,
-      theme: body.theme,
+      phone: phone_number,
+      theme: theme,
+      vocal: vocalGender,
+      artist: preferredArtist,
     });
 
-    const { phone_number, theme, answers, style, genre } = body;
-
-    // 휴대폰 번호 유효성 검사
+    // 2. 휴대폰 번호 유효성 검사
     const phoneRegex = /^010-\d{4}-\d{4}$/;
     if (!phoneRegex.test(phone_number)) {
       return NextResponse.json(
@@ -40,7 +52,7 @@ export async function POST(request: Request) {
 
     console.log("Inserting to database...");
 
-    // 노래 요청 생성
+    // 3. 노래 요청 생성 (DB 컬럼명에 맞춰 매핑)
     const { data: songRequest, error: requestError } = await supabase
       .from("song_requests")
       .insert({
@@ -49,6 +61,8 @@ export async function POST(request: Request) {
         answers,
         style,
         genre,
+        vocal_gender: vocalGender || "female", // DB 컬럼: vocal_gender
+        preferred_artist: preferredArtist || "", // DB 컬럼: preferred_artist
         status: "pending",
       })
       .select()

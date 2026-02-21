@@ -79,6 +79,8 @@ export default function PhoneNumberPage() {
         answers,
         style: selectedStyle,
         genre: selectedGenre,
+        vocalGender,
+        preferredArtist,
       }),
       keepalive: true,
     })
