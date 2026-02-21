@@ -10,16 +10,24 @@ import {
   Phone,
   FileText,
   Send,
+  Search,
+  Filter,
+  ChevronDown,
+  User,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
+// Interface 보완: 사용자의 답변 내역(answers) 추가
 interface RequestWithPrompt {
   id: string;
   phone_number: string;
   theme: string;
   genre: string;
   style: string;
+  answers: Record<string, string>; // 유저 답변 추가
   status: string;
   sent_at: string | null;
   created_at: string;
@@ -33,7 +41,13 @@ interface RequestWithPrompt {
 export default function AdminDashboard() {
   const router = useRouter();
   const [requests, setRequests] = useState<RequestWithPrompt[]>([]);
+  const [filteredRequests, setFilteredRequests] = useState<RequestWithPrompt[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedStates, setCopiedStates] = useState<
     Record<string, Record<string, boolean>>
   >({});
@@ -43,6 +57,23 @@ export default function AdminDashboard() {
     fetchAllRequests();
   }, []);
 
+  // 검색 및 필터링 로직
+  useEffect(() => {
+    let filtered = requests;
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (r) =>
+          r.phone_number.includes(searchTerm) || r.theme.includes(searchTerm)
+      );
+    }
+    if (filterStatus !== "all") {
+      filtered = filtered.filter((r) =>
+        filterStatus === "sent" ? r.status === "sent" : r.status !== "sent"
+      );
+    }
+    setFilteredRequests(filtered);
+  }, [searchTerm, filterStatus, requests]);
+
   const checkAdmin = async () => {
     const {
       data: { user },
@@ -51,60 +82,35 @@ export default function AdminDashboard() {
       router.push("/admin/login");
       return;
     }
-
     try {
       const response = await fetch("/api/check-admin", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id }),
       });
-
       const result = await response.json();
-      console.log("Admin check in dashboard:", result);
-
       if (!result.isAdmin) {
         await supabase.auth.signOut();
         router.push("/");
       }
     } catch (error) {
-      console.error("Admin check failed:", error);
       router.push("/admin/login");
     }
   };
 
   const fetchAllRequests = async () => {
-    console.log("🔍 Fetching requests from API...");
-
+    setLoading(true);
     try {
       const response = await fetch("/api/admin/requests");
-      console.log("📡 Response status:", response.status);
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch requests");
-      }
-
       const result = await response.json();
-      console.log("📦 Result:", result);
-      console.log("📊 Requests count:", result.data?.length || 0);
-
       if (result.success) {
         setRequests(result.data);
-        console.log("✅ Requests set successfully");
-      } else {
-        console.error("❌ Error:", result.error);
       }
     } catch (error) {
-      console.error("💥 Error fetching requests:", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
   };
 
   const copyToClipboard = async (
@@ -118,350 +124,353 @@ export default function AdminDashboard() {
         ...prev,
         [requestId]: { ...prev[requestId], [field]: true },
       }));
-
-      setTimeout(() => {
-        setCopiedStates((prev) => ({
-          ...prev,
-          [requestId]: { ...prev[requestId], [field]: false },
-        }));
-      }, 2000);
+      setTimeout(
+        () =>
+          setCopiedStates((prev) => ({
+            ...prev,
+            [requestId]: { ...prev[requestId], [field]: false },
+          })),
+        1500
+      );
     } catch (error) {
-      console.error("Failed to copy:", error);
+      console.error(error);
     }
   };
 
   const markAsSent = async (requestId: string) => {
+    if (!confirm("전송 완료로 표시할까요?")) return;
     try {
       const response = await fetch("/api/admin/update-status", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId }),
       });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update status");
-      }
-
-      // 목록 새로고침
-      fetchAllRequests();
-      alert("전송 완료로 표시되었습니다.");
-    } catch (error: any) {
-      console.error("Error updating status:", error);
-      alert("상태 업데이트에 실패했습니다.");
+      if (response.ok) fetchAllRequests();
+    } catch (error) {
+      alert("업데이트 실패");
     }
   };
-
-  const isCopied = (requestId: string, field: string) => {
-    return copiedStates[requestId]?.[field] || false;
-  };
-
-  const getStatusBadge = (status: string, sentAt: string | null) => {
-    if (status === "sent") {
-      return (
-        <div className="text-xs">
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full">
-            <Check className="w-3 h-3" />
-            전송 완료
-          </span>
-          {sentAt && (
-            <div className="text-warm-600 mt-1">
-              {new Date(sentAt).toLocaleString("ko-KR")}
-            </div>
-          )}
-        </div>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">
-        <Phone className="w-3 h-3" />
-        전송 대기
-      </span>
-    );
-  };
-  console.log("🎨 Rendering with:", {
-    loading,
-    requestsLength: requests.length,
-    requests: requests,
-  });
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#FAFAFA]">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-warm-200 sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <header className="bg-white/80 backdrop-blur-md border-b border-warm-100 sticky top-0 z-30">
+        <div className="container mx-auto px-4 h-16 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Music className="w-7 h-7 text-primary-600" />
-            <h1 className="text-xl md:text-2xl font-display font-bold text-primary-900">
+            <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+              <Music className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-lg font-bold text-warm-900 tracking-tight">
               담음 관리자
             </h1>
           </div>
-
           <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-2 px-4 py-2 text-warm-700 hover:text-warm-900 transition-colors"
+            onClick={() => supabase.auth.signOut().then(() => router.push("/"))}
+            className="p-2 text-warm-500 hover:bg-warm-50 rounded-full transition-all"
           >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden md:inline">로그아웃</span>
+            <LogOut className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 md:py-12">
-        {/* Stats */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                <FileText className="w-6 h-6 text-primary-600" />
+      <main className="container mx-auto px-4 py-8 max-w-5xl">
+        {/* 상단 통계 카드 */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          {[
+            {
+              label: "전체 요청",
+              count: requests.length,
+              color: "bg-primary-500",
+              icon: FileText,
+            },
+            {
+              label: "대기 중",
+              count: requests.filter((r) => r.status !== "sent").length,
+              color: "bg-yellow-500",
+              icon: Phone,
+            },
+            {
+              label: "전송 완료",
+              count: requests.filter((r) => r.status === "sent").length,
+              color: "bg-green-500",
+              icon: Check,
+            },
+          ].map((stat, i) => (
+            <div
+              key={i}
+              className="bg-white p-5 rounded-3xl shadow-sm border border-warm-100 flex items-center gap-4"
+            >
+              <div
+                className={`w-10 h-10 ${stat.color} rounded-2xl flex items-center justify-center text-white`}
+              >
+                <stat.icon className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm text-warm-600">전체 요청</p>
-                <p className="text-2xl font-bold text-primary-900">
-                  {requests.length}
+                <p className="text-xs text-warm-500 font-medium">
+                  {stat.label}
                 </p>
+                <p className="text-xl font-bold text-warm-900">{stat.count}</p>
               </div>
             </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-warm-600">전송 완료</p>
-                <p className="text-2xl font-bold text-primary-900">
-                  {requests.filter((r) => r.status === "sent").length}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Phone className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-warm-600">전송 대기</p>
-                <p className="text-2xl font-bold text-primary-900">
-                  {requests.filter((r) => r.status !== "sent").length}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+          ))}
         </div>
 
-        {/* Requests List */}
-        <div>
-          <h2 className="text-2xl font-display font-bold text-primary-900 mb-6">
-            노래 요청 목록
-          </h2>
+        {/* 검색 및 필터 바 */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-300" />
+            <input
+              type="text"
+              placeholder="전화번호 또는 테마 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+            />
+          </div>
+          <div className="flex gap-2 bg-white p-1.5 rounded-2xl shadow-sm">
+            {["all", "pending", "sent"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  filterStatus === s
+                    ? "bg-warm-900 text-white"
+                    : "text-warm-400 hover:text-warm-600"
+                }`}
+              >
+                {s === "all" ? "전체" : s === "pending" ? "대기" : "완료"}
+              </button>
+            ))}
+          </div>
+        </div>
 
+        {/* 리스트 섹션 */}
+        <div className="space-y-4">
           {loading ? (
-            <div className="text-center py-12 text-warm-600">
-              <Music className="w-12 h-12 mx-auto mb-4 animate-pulse" />
-              불러오는 중...
+            <div className="py-20 text-center">
+              <Music className="w-8 h-8 mx-auto animate-spin text-primary-200" />
             </div>
-          ) : requests.length === 0 ? (
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-12 text-center">
-              <Music className="w-16 h-16 mx-auto mb-4 text-warm-400" />
-              <p className="text-warm-700">아직 요청이 없습니다.</p>
+          ) : filteredRequests.length === 0 ? (
+            <div className="py-20 text-center bg-white rounded-3xl border border-dashed border-warm-200 text-warm-400">
+              요청 데이터가 없습니다.
             </div>
           ) : (
-            <div className="space-y-6">
-              {requests.map((request, index) => (
-                <motion.div
-                  key={request.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-lg"
+            filteredRequests.map((request) => (
+              <motion.div
+                layout
+                key={request.id}
+                className={`bg-white rounded-[2rem] border transition-all ${
+                  expandedId === request.id
+                    ? "border-primary-200 shadow-md"
+                    : "border-warm-100 shadow-sm"
+                }`}
+              >
+                {/* 헤더 부분 (항상 노출) */}
+                <div
+                  className="p-5 md:p-6 cursor-pointer flex items-center justify-between"
+                  onClick={() =>
+                    setExpandedId(expandedId === request.id ? null : request.id)
+                  }
                 >
-                  {/* Request Info */}
-                  <div className="mb-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                      <div>
-                        <h3 className="text-xl font-display font-bold text-primary-900 mb-2">
-                          {request.theme}
-                        </h3>
-                        <div className="flex flex-wrap gap-2 text-sm">
-                          <span className="px-3 py-1 bg-primary-100 text-primary-900 rounded-full">
-                            {request.genre}
-                          </span>
-                          <span className="px-3 py-1 bg-warm-100 text-warm-900 rounded-full">
-                            {request.style}
-                          </span>
-                          {getStatusBadge(request.status, request.sent_at)}
-                        </div>
-                      </div>
-                      <div className="text-sm text-warm-600">
-                        <p className="flex items-center gap-2">
-                          <Phone className="w-4 h-4" />
-                          {request.phone_number}
-                        </p>
-                        <p className="mt-1">
-                          {new Date(request.created_at).toLocaleString("ko-KR")}
-                        </p>
-                      </div>
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        request.status === "sent"
+                          ? "bg-green-500"
+                          : "bg-yellow-500 animate-pulse"
+                      }`}
+                    />
+                    <div>
+                      <h3 className="font-bold text-warm-900 flex items-center gap-2">
+                        {request.theme}
+                        <span className="text-xs font-normal text-warm-400">
+                          | {request.genre}
+                        </span>
+                      </h3>
+                      <p className="text-sm text-warm-500 mt-0.5">
+                        {request.phone_number}
+                      </p>
                     </div>
                   </div>
-
-                  {/* Generated Content */}
-                  {request.prompt && (
-                    <div className="space-y-4">
-                      {/* Title */}
-                      <div className="bg-warm-50 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-primary-900">
-                            곡 제목
-                          </h4>
-                          <button
-                            onClick={() =>
-                              copyToClipboard(
-                                request.prompt!.song_title,
-                                request.id,
-                                "title"
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-                          >
-                            {isCopied(request.id, "title") ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                복사됨
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                복사
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <p className="text-primary-900 font-medium">
-                          {request.prompt.song_title}
-                        </p>
-                      </div>
-
-                      {/* Lyrics */}
-                      {/* 가사 섹션 내부 */}
-                      <div className="bg-warm-50 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-primary-900">
-                            가사
-                          </h4>
-                          <button
-                            onClick={() =>
-                              // 복사할 때는 <br>을 실제 줄바꿈(\n)으로 바꿔서 클립보드에 복사해주는 것이 좋습니다.
-                              copyToClipboard(
-                                request.prompt!.lyrics.replace(
-                                  /<br\s*\/?>/gi,
-                                  "\n"
-                                ),
-                                request.id,
-                                "lyrics"
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-                          >
-                            {isCopied(request.id, "lyrics") ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                복사됨
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                복사
-                              </>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* 이 부분을 수정합니다 */}
-                        <pre className="whitespace-pre-wrap text-sm text-warm-900 max-h-64 overflow-y-auto font-sans">
-                          {request.prompt.lyrics
-                            .split(/<br\s*\/?>/gi)
-                            .map((line, index, array) => (
-                              <span key={index}>
-                                {line}
-                                {index < array.length - 1 && <br />}
-                              </span>
-                            ))}
-                        </pre>
-                      </div>
-
-                      {/* Style Tags */}
-                      <div className="bg-warm-50 rounded-xl p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-primary-900">
-                            Style Tags
-                          </h4>
-                          <button
-                            onClick={() =>
-                              copyToClipboard(
-                                request.prompt!.style_tags,
-                                request.id,
-                                "tags"
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-                          >
-                            {isCopied(request.id, "tags") ? (
-                              <>
-                                <Check className="w-3 h-3" />
-                                복사됨
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3 h-3" />
-                                복사
-                              </>
-                            )}
-                          </button>
-                        </div>
-                        <p className="text-sm text-warm-900">
-                          {request.prompt.style_tags}
-                        </p>
-                      </div>
-
-                      {/* Mark as Sent Button */}
-                      {request.status !== "sent" && (
-                        <div className="pt-4 border-t border-warm-200">
-                          <button
-                            onClick={() => markAsSent(request.id)}
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
-                          >
-                            <Send className="w-4 h-4" />
-                            전송 완료로 표시
-                          </button>
-                        </div>
-                      )}
+                  <div className="flex items-center gap-3">
+                    <span className="hidden md:block text-xs text-warm-300">
+                      {new Date(request.created_at).toLocaleDateString()}
+                    </span>
+                    <div
+                      className={`p-2 rounded-full transition-transform ${
+                        expandedId === request.id
+                          ? "rotate-180 text-primary-500"
+                          : "text-warm-300"
+                      }`}
+                    >
+                      <ChevronDown className="w-5 h-5" />
                     </div>
+                  </div>
+                </div>
+
+                {/* 상세 부분 (확장 시 노출) */}
+                <AnimatePresence>
+                  {expandedId === request.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden border-t border-warm-50"
+                    >
+                      <div className="p-6 md:p-8 space-y-8">
+                        {/* 1. AI 생성 결과 */}
+                        {request.prompt ? (
+                          <section className="space-y-6">
+                            <div className="flex items-center gap-2 mb-4 text-primary-600">
+                              <Sparkles className="w-4 h-4" />
+                              <h4 className="text-sm font-bold uppercase tracking-wider">
+                                AI Generated
+                              </h4>
+                            </div>
+
+                            {/* 제목 & 태그 */}
+                            <div className="grid md:grid-cols-2 gap-4">
+                              <div className="bg-white border border-warm-100 p-5 rounded-2xl group">
+                                <div className="flex justify-between items-start mb-2">
+                                  <span className="text-[10px] font-bold text-warm-300 uppercase">
+                                    Song Title
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      copyToClipboard(
+                                        request.prompt!.song_title,
+                                        request.id,
+                                        "title"
+                                      )
+                                    }
+                                    className="text-primary-500 hover:scale-110 transition-transform"
+                                  >
+                                    {copiedStates[request.id]?.title ? (
+                                      <Check className="w-4 h-4" />
+                                    ) : (
+                                      <Copy className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </div>
+                                <p className="font-bold text-lg text-warm-900">
+                                  {request.prompt.song_title}
+                                </p>
+                              </div>
+                              <div className="bg-white border border-warm-100 p-5 rounded-2xl">
+                                <div className="flex justify-between items-start mb-2">
+                                  <span className="text-[10px] font-bold text-warm-300 uppercase">
+                                    Style Tags
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      copyToClipboard(
+                                        request.prompt!.style_tags,
+                                        request.id,
+                                        "tags"
+                                      )
+                                    }
+                                    className="text-primary-500 hover:scale-110 transition-transform"
+                                  >
+                                    {copiedStates[request.id]?.tags ? (
+                                      <Check className="w-4 h-4" />
+                                    ) : (
+                                      <Copy className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                </div>
+                                <p className="text-sm text-warm-600 font-mono">
+                                  {request.prompt.style_tags}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* 가사 */}
+                            <div className="bg-warm-900 text-warm-100 p-6 md:p-8 rounded-[2rem] relative group">
+                              <button
+                                onClick={() =>
+                                  copyToClipboard(
+                                    request.prompt!.lyrics.replace(
+                                      /<br\s*\/?>/gi,
+                                      "\n"
+                                    ),
+                                    request.id,
+                                    "lyrics"
+                                  )
+                                }
+                                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-all"
+                              >
+                                {copiedStates[request.id]?.lyrics ? (
+                                  <Check className="w-5 h-5 text-green-400" />
+                                ) : (
+                                  <Copy className="w-5 h-5" />
+                                )}
+                              </button>
+                              <pre className="whitespace-pre-wrap font-sans text-sm md:text-base leading-loose opacity-90">
+                                {request.prompt.lyrics
+                                  .split(/<br\s*\/?>/gi)
+                                  .map((line, i) => (
+                                    <span key={i}>
+                                      {line}
+                                      <br />
+                                    </span>
+                                  ))}
+                              </pre>
+                            </div>
+                            {/* 1. 유저 답변 내역 */}
+                            <section>
+                              <div className="flex items-center gap-2 mb-4 text-primary-600">
+                                <User className="w-4 h-4" />
+                                <h4 className="text-sm font-bold uppercase tracking-wider">
+                                  User Story
+                                </h4>
+                              </div>
+                              <div className="grid gap-3">
+                                {Object.entries(request.answers || {}).map(
+                                  ([q, a], i) => (
+                                    <div
+                                      key={i}
+                                      className="bg-warm-50/50 p-4 rounded-2xl"
+                                    >
+                                      <p className="text-[11px] text-warm-400 mb-1">
+                                        Q. {q}
+                                      </p>
+                                      <p className="text-sm text-warm-800 leading-relaxed font-medium">
+                                        {a}
+                                      </p>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </section>
+
+                            {/* 전송 버튼 */}
+                            <div className="flex flex-col md:flex-row gap-3 pt-4">
+                              {request.status !== "sent" ? (
+                                <button
+                                  onClick={() => markAsSent(request.id)}
+                                  className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+                                >
+                                  <Send className="w-4 h-4" /> 전송 완료로 표시
+                                </button>
+                              ) : (
+                                <div className="flex-1 py-4 bg-warm-50 text-warm-400 rounded-2xl font-bold flex items-center justify-center gap-2 border border-warm-100">
+                                  <Check className="w-4 h-4" /> 전송 완료 (
+                                  {new Date(request.sent_at!).toLocaleString()})
+                                </div>
+                              )}
+                            </div>
+                          </section>
+                        ) : (
+                          <div className="py-12 text-center bg-warm-50 rounded-3xl text-warm-400 text-sm">
+                            가사 생성 중이거나 오류가 발생했습니다.
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
                   )}
-                </motion.div>
-              ))}
-            </div>
+                </AnimatePresence>
+              </motion.div>
+            ))
           )}
         </div>
       </main>

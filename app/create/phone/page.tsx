@@ -8,7 +8,6 @@ import {
   CheckCircle,
   TicketCheck,
   Info,
-  Music,
   Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -20,6 +19,8 @@ export default function PhoneNumberPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
+  const [vocalGender, setVocalGender] = useState<"male" | "female">("female"); // 추가
+  const [preferredArtist, setPreferredArtist] = useState(""); // 추가
   const [phoneNumber, setPhoneNumber] = useState("");
 
   useEffect(() => {
@@ -27,6 +28,10 @@ export default function PhoneNumberPage() {
     const savedAnswers = localStorage.getItem("answers");
     const savedStyle = localStorage.getItem("selectedStyle") as Style;
     const savedGenre = localStorage.getItem("selectedGenre") as Genre;
+    const savedGender = localStorage.getItem("vocalGender") as
+      | "male"
+      | "female"; // 추가
+    const savedArtist = localStorage.getItem("preferredArtist") || ""; // 추가
 
     if (!savedTheme || !savedAnswers || !savedStyle || !savedGenre) {
       router.push("/create/theme");
@@ -35,6 +40,8 @@ export default function PhoneNumberPage() {
       setAnswers(JSON.parse(savedAnswers));
       setSelectedStyle(savedStyle);
       setSelectedGenre(savedGenre);
+      if (savedGender) setVocalGender(savedGender); // 추가
+      setPreferredArtist(savedArtist); // 추가
     }
   }, [router]);
 
@@ -62,8 +69,7 @@ export default function PhoneNumberPage() {
       return;
     }
 
-    // [핵심] 1. 백그라운드 API 호출 (기다리지 않음)
-    // keepalive: true는 페이지 이동 후에도 브라우저가 요청을 끝까지 처리하게 합니다.
+    // 1. 백그라운드 API 호출 (DB 저장)
     fetch("/api/submit-request", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -81,7 +87,7 @@ export default function PhoneNumberPage() {
           const result = await res.json();
           const requestId = result.data.requestId;
 
-          // 2단계 프롬프트 생성도 백그라운드에서 이어서 실행
+          // 2. 가사 생성 API 호출 (새로운 필드 포함)
           fetch("/api/generate-prompt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -91,6 +97,8 @@ export default function PhoneNumberPage() {
               answers,
               style: selectedStyle,
               genre: selectedGenre,
+              vocalGender, // 필수 추가
+              preferredArtist, // 필수 추가
             }),
             keepalive: true,
           });
@@ -98,12 +106,16 @@ export default function PhoneNumberPage() {
       })
       .catch((err) => console.error("Background sync failed:", err));
 
-    // [핵심] 2. 클릭 즉시 페이지 이동
-    // 로컬 스토리지는 이동 전에 미리 비워줍니다.
-    localStorage.removeItem("selectedTheme");
-    localStorage.removeItem("answers");
-    localStorage.removeItem("selectedStyle");
-    localStorage.removeItem("selectedGenre");
+    // 로컬 스토리지 정리
+    const itemsToRemove = [
+      "selectedTheme",
+      "answers",
+      "selectedStyle",
+      "selectedGenre",
+      "vocalGender",
+      "preferredArtist",
+    ];
+    itemsToRemove.forEach((item) => localStorage.removeItem(item));
 
     router.push(`/complete?phone=${encodeURIComponent(phoneNumber)}`);
   };
@@ -112,7 +124,7 @@ export default function PhoneNumberPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
-      {/* Header & Progress */}
+      {/* Header & Progress 생략 (기존과 동일) */}
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md">
         <div className="h-1 w-full bg-warm-100">
           <motion.div
@@ -139,7 +151,7 @@ export default function PhoneNumberPage() {
       </header>
 
       <main className="flex-1 container mx-auto px-6 py-8 pb-32 max-w-lg">
-        {/* Title Section */}
+        {/* Title Section (기존과 동일) */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -157,7 +169,7 @@ export default function PhoneNumberPage() {
           </p>
         </motion.div>
 
-        {/* Selection Summary Card */}
+        {/* Selection Summary Card (수정: 보컬 정보 추가) */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -172,13 +184,16 @@ export default function PhoneNumberPage() {
           </h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-warm-50 pb-3">
-              <span className="text-sm text-warm-500">주제</span>
-              <span className="text-sm font-bold text-warm-900">{theme}</span>
+              <span className="text-sm text-warm-500">주제 / 장르</span>
+              <span className="text-sm font-bold text-warm-900">
+                {theme} / {selectedGenre}
+              </span>
             </div>
             <div className="flex justify-between items-center border-b border-warm-50 pb-3">
-              <span className="text-sm text-warm-500">장르</span>
+              <span className="text-sm text-warm-500">목소리</span>
               <span className="text-sm font-bold text-warm-900">
-                {selectedGenre}
+                {vocalGender === "female" ? "여성" : "남성"}
+                {preferredArtist && ` (${preferredArtist.slice(0, 10)})`}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -190,7 +205,7 @@ export default function PhoneNumberPage() {
           </div>
         </motion.div>
 
-        {/* Phone Number Input */}
+        {/* Phone Number Input & Action Button (기존과 동일) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -217,14 +232,8 @@ export default function PhoneNumberPage() {
               className="w-full pl-14 pr-6 py-5 bg-white border-2 border-transparent rounded-[1.5rem] text-xl font-medium focus:border-primary-500 focus:ring-4 focus:ring-primary-50 outline-none transition-all shadow-sm placeholder:text-warm-200"
             />
           </div>
-          <p className="mt-3 text-[11px] text-warm-400 flex items-start gap-1.5 px-1">
-            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-            번호를 잘못 입력하시면 노래를 받으실 수 없으니 다시 한번
-            확인해주세요.
-          </p>
         </motion.div>
 
-        {/* Action Button */}
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA] to-transparent z-10">
           <div className="max-w-lg mx-auto">
             <motion.button
@@ -243,28 +252,6 @@ export default function PhoneNumberPage() {
             </motion.button>
           </div>
         </div>
-
-        {/* Notice Card */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="p-5 bg-primary-50 rounded-2xl border border-primary-100"
-        >
-          <h4 className="text-[10px] font-bold text-primary-700 mb-2 uppercase tracking-widest">
-            이후 진행 안내
-          </h4>
-          <ul className="space-y-1.5">
-            <li className="text-xs text-primary-800 flex gap-2">
-              <span className="opacity-50">•</span> AI가 당신의 이야기를
-              분석하여 작곡을 시작합니다.
-            </li>
-            <li className="text-xs text-primary-800 flex gap-2">
-              <span className="opacity-50">•</span> 완성된 곡은 검수 후
-              카카오톡으로 개별 발송됩니다.
-            </li>
-          </ul>
-        </motion.div>
       </main>
     </div>
   );

@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Sparkles,
-  Music,
-  ArrowRight,
-  CheckCircle2,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
 import {
   STYLE_DESCRIPTIONS,
   type Style,
@@ -34,6 +28,7 @@ const genres: Genre[] = [
   "팝",
   "록",
   "재즈",
+  "힙합",
 ];
 
 export default function StyleSelection() {
@@ -41,11 +36,14 @@ export default function StyleSelection() {
   const [theme, setTheme] = useState<Theme | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
   const [selectedGenre, setSelectedGenre] = useState<Genre | null>(null);
+  const [vocalGender, setVocalGender] = useState<"female" | "male">("female");
+  const [preferredArtist, setPreferredArtist] = useState("");
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("selectedTheme") as Theme;
     const savedAnswers = localStorage.getItem("answers");
 
+    // 이전 단계의 데이터가 없으면 뒤로 보냄
     if (!savedTheme || !savedAnswers) {
       router.push("/create/theme");
     } else {
@@ -55,8 +53,13 @@ export default function StyleSelection() {
 
   const handleNext = () => {
     if (!selectedStyle || !selectedGenre) return;
+
+    // 모든 선택 데이터를 로컬스토리지에 저장
     localStorage.setItem("selectedStyle", selectedStyle);
     localStorage.setItem("selectedGenre", selectedGenre);
+    localStorage.setItem("vocalGender", vocalGender);
+    localStorage.setItem("preferredArtist", preferredArtist);
+
     router.push("/create/phone");
   };
 
@@ -65,7 +68,7 @@ export default function StyleSelection() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       {/* Header & Progress */}
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md">
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-warm-100">
         <div className="h-1 w-full bg-warm-100">
           <motion.div
             initial={{ width: "66.6%" }}
@@ -98,11 +101,11 @@ export default function StyleSelection() {
             이제 다 왔어요!
           </h1>
           <p className="text-warm-500 text-sm">
-            이야기에 어울리는 분위기를 골라주세요.
+            이야기에 어울리는 음악적 색깔을 입혀주세요.
           </p>
         </motion.div>
 
-        {/* Style Selection (Mood) */}
+        {/* 1. 분위기 선택 */}
         <section className="mb-12">
           <div className="flex items-center gap-2 mb-5">
             <div className="w-1 h-4 bg-primary-500 rounded-full" />
@@ -110,7 +113,6 @@ export default function StyleSelection() {
               어떤 분위기가 좋은가요?
             </h2>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {styles.map((style) => {
               const isSelected = selectedStyle === style;
@@ -147,7 +149,7 @@ export default function StyleSelection() {
           </div>
         </section>
 
-        {/* Genre Selection (Chips style) */}
+        {/* 2. 장르 선택 */}
         <section className="mb-12">
           <div className="flex items-center gap-2 mb-5">
             <div className="w-1 h-4 bg-primary-500 rounded-full" />
@@ -155,7 +157,6 @@ export default function StyleSelection() {
               선호하는 장르는 무엇인가요?
             </h2>
           </div>
-
           <div className="flex flex-wrap gap-2">
             {genres.map((genre) => {
               const isSelected = selectedGenre === genre;
@@ -178,8 +179,52 @@ export default function StyleSelection() {
           </div>
         </section>
 
+        {/* 3. 보컬 및 상세 스타일 설정 */}
+        <section className="mb-12">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-1 h-4 bg-primary-500 rounded-full" />
+            <h2 className="text-lg font-bold text-warm-900">
+              목소리 디테일 설정
+            </h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex gap-3">
+              {["female", "male"].map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setVocalGender(g as any)}
+                  className={`flex-1 py-4 rounded-xl font-bold border-2 transition-all ${
+                    vocalGender === g
+                      ? "border-primary-500 bg-primary-50 text-primary-600"
+                      : "border-warm-100 bg-white text-warm-400"
+                  }`}
+                >
+                  {g === "female" ? "여성 보컬" : "남성 보컬"}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-warm-600 ml-1">
+                스타일이 닮고 싶은 가수 (목소리 복제 X) (선택)
+              </label>
+              <input
+                type="text"
+                value={preferredArtist}
+                onChange={(e) => setPreferredArtist(e.target.value)}
+                placeholder="예: 아이유, 김광석"
+                className="w-full p-4 bg-white rounded-xl border border-warm-100 outline-none focus:ring-2 focus:ring-primary-100 transition-all text-warm-900 placeholder:text-warm-300"
+              />
+              <p className="text-[11px] text-warm-400 ml-1 leading-relaxed">
+                * 특정 가수의 분위기를 분석하여 노래 제작에 반영합니다.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Floating Bottom Button */}
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA] to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#FAFAFA] via-[#FAFAFA] to-transparent z-10">
           <div className="max-w-2xl mx-auto">
             <motion.button
               whileTap={{ scale: 0.98 }}
