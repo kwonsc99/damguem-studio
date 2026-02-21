@@ -187,18 +187,20 @@ async function generateSongPrompt(data: {
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
-    if (!text) throw new Error("Empty response from Gemini");
+    if (!text) throw new Error("Empty response");
 
-    // 안전한 파싱: 마크다운 코드 블록 제거 후 파싱
-    const cleanedText = text.replace(/```json|```/g, "").trim();
+    // ✅ 가끔씩 발생하는 JSON 앞뒤 불필요한 문자열 제거 로직 강화
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanedText = jsonMatch ? jsonMatch[0] : text;
+
     return JSON.parse(cleanedText);
   } catch (error) {
-    console.error("Gemini API Parsing Error:", error);
-    // 폴백 데이터 반환
+    console.error("Gemini API Error:", error);
+    // 에러 발생 시 사용자 경험을 위해 정교한 폴백 데이터 반환
     return {
-      songTitle: `${theme}의 이야기`,
-      lyrics: `[Verse 1]\n소중한 기억이 노래가 되어 흐르네요\n잠시만 기다려주면\n아름다운 곡이 완성될 거예요`,
-      styleTags: `korean, ${genre}, emotional`,
+      songTitle: `${theme}에게 바치는 노래`,
+      lyrics: `[Verse 1]\n당신의 소중한 기억들을 모아\n따뜻한 노래로 빚어내고 있어요\n잠시만 기다려주신다면\n진심이 담긴 곡을 선물할게요`,
+      styleTags: `korean, ${genre}, emotional, melodic`,
     };
   }
 }
